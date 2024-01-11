@@ -4,13 +4,13 @@
 
 An experimental project to determine whether a full-featured scripting language can be used on larger-memory Arduino boards to control hardware. At the moment only the Giga board with Arduino Display Shield is supported, but future support for Portenta H7 (with USB-C display) may be possible.
 
-The [Lox language](https://www.craftinginterpreters.com/) was chosen because of an available ready-made implementation in C ([clox](https://github.com/munificent/craftinginterpreters/tree/master/c)) which is a compact and very quick JIT-compiled interpreter. It is also easy to extend with additional Lox functions, which are mapped to native C/C++ ones defined in the sketch. The construction of the interpreter is described in detail in the book "Crafting Interpreters", however reading the book is not necessarily a prerequisite for using the language or even extending it with new functions.
+The [Lox language](https://www.craftinginterpreters.com/) was chosen because of the availability of a ready-made implementation in C ([clox](https://github.com/munificent/craftinginterpreters/tree/master/c)) which is a compact and very quick JIT-compiled interpreter. It is also easy to extend with additional Lox functions, which are mapped to native C/C++ ones defined in the sketch. The construction of the interpreter is described in detail in the book "Crafting Interpreters", however reading the book is not necessarily a prerequisite for using the language or even extending it with new functions.
 
 ## Getting Started
 
-The number of graphics and other functions from [this page](https://www.arduino.cc/reference/en/) is already quite large, leading to a near 400-line sketch required to support the library functionality. Take a look at the example "clox_gfx_demo" and copy it into your sketches folder; the functions prefixed with `gfx_` such as `gfx_millis` are called from Lox without this prefix, for example as `print millis();`.
+The number of supported graphics functions (and other functions from [this page](https://www.arduino.cc/reference/en/)) is already quite large, leading to a near 400-line sketch required to support the library functionality. Take a look at the example "clox_gfx_demo" and copy it into your sketches folder; the functions prefixed with `gfx_` such as `gfx_millis` are called from within the Lox interpreter without this prefix, for example as `print millis();`.
 
-Flashing and booting the Giga results in a REPL in the Serial Monitor, enter line(s) of Lox code at `> ` and `. ` prompts and press Enter on a blank line to execute. Error messages are reported in the REPL, and the blue LED is on for the duration of executing the code fragment just entered. For example to pulse the blue LED for ten seconds use the following Lox code in the interpreter:
+Flashing and booting the Giga results in a REPL in the Serial Monitor, enter line(s) of Lox code at `> ` (start) and `. ` (continuation) prompts, and press Enter on a blank line to execute. Error messages are reported in the REPL, and the blue LED turns on for the duration of executing the code fragment just entered. To pulse the blue LED for ten seconds use the following Lox code in the interpreter:
 
 ```javascript
 pinMode(88, "OUTPUT");
@@ -31,7 +31,7 @@ ellipse(400, 240, 200, 100);
 endDraw();
 ```
 
-Note: The Arduino_H7_Video library uses some shared SDRAM for the framebuffer, and so `SDRAM.begin();` should **not** be called after initializing the display.
+Note: The Arduino_H7_Video library uses some shared SDRAM for the framebuffer, and `SDRAM.begin();` should **not** be called after initializing the display.
 
 Scripts stored on USB flash devices plugged into the USB port on the Giga can be loaded with `load "script.lox"` at the prompt.
 
@@ -41,7 +41,7 @@ The process of adding additional native functions to the Lox interpreter has fou
 
 1. Write the C++ function with `gfx_` prefix in the script. The return value should be one of `GFX_RETURN_NIL`, `GFX_RETURN_NUM(double)` or `GFX_RETURN_BOOL(bool)`, the parameters need to be convertible from double (unless using custom `GFX_ARGS_...`). This function **must** be declared with C-linkage (inside an `extern "C"` block).
 
-2. Copy the prototype for this function into `clox_gfx.h` and make sure one of the `#define GFX_DEFINE_...` matches this prototype.
+2. Copy the prototype for this function into `clox_gfx.h` and make sure one of the `#define GFX_DEFINE_...` choices matches this prototype.
 
 3. Add `GFX_DEFINE(name, arity)` or `GFX_DEFINE_...(name)` to `vm.c` after line ~105 (the existing native function definitions)
 
@@ -88,6 +88,7 @@ In the style of the book "Crafting Interpreters" by Bob Nystrom, which describes
 
 int Serial_printf(const char *fmt, ...);
 int Serial_fprintf(FILE *dummy, const char *fmt, ...);
+int Serial_vfprintf(FILE *dummy, const char *fmt, va_list args);
 
 #endif
 ```
@@ -202,7 +203,7 @@ int Serial_vfprintf(FILE *dummy, const char *fmt, va_list args) {
 } // extern "C"
 ```
 
-Check that this compiles and link correctly, and then boots to a basic REPL in the Serial Monitor.
+Check that this compiles and link correctly, and then boots to a basic REPL in the Serial Monitor. You can now begin adding native functions to be called by Lox, as outlined above.
 
 ## License
 

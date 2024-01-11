@@ -10,5 +10,6 @@
 
 int Serial_printf(const char *fmt, ...);
 int Serial_fprintf(FILE *dummy, const char *fmt, ...);
+int Serial_vfprintf(FILE *dummy, const char *fmt, va_list args);
 
 #endif
