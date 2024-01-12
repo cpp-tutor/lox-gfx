@@ -4,7 +4,7 @@
 
 An experimental project to determine whether a full-featured scripting language can be used on larger-memory Arduino boards to control hardware. At the moment only the Giga board with Arduino Display Shield is supported, but future support for Portenta H7 (with USB-C display) may be possible.
 
-The [Lox language](https://www.craftinginterpreters.com/) was chosen because of the availability of a ready-made implementation in C ([clox](https://github.com/munificent/craftinginterpreters/tree/master/c)) which is a compact and very quick JIT-compiled interpreter. It is also easy to extend with additional Lox functions, which are mapped to native C/C++ ones defined in the sketch. The construction of the interpreter is described in detail in the book "Crafting Interpreters", however reading the book is not necessarily a prerequisite for using the language or even extending it with new functions.
+The [Lox language](https://www.craftinginterpreters.com/appendix-i.html) was chosen because of the availability of a ready-made implementation in C ([clox](https://github.com/munificent/craftinginterpreters/tree/master/c)) which is a compact and very quick JIT-compiled interpreter. It is also easy to extend with additional Lox functions, which are mapped to native C/C++ ones defined in the sketch. The construction of the interpreter is described in detail in the book "Crafting Interpreters", however reading the book is not necessarily a prerequisite for using the language or even extending it with new functions.
 
 ## Getting Started
 
@@ -13,12 +13,13 @@ The number of supported graphics functions (and other functions from [this page]
 Flashing and booting the Giga results in a REPL in the Serial Monitor, enter line(s) of Lox code at `> ` (start) and `. ` (continuation) prompts, and press Enter on a blank line to execute. Error messages are reported in the REPL, and the blue LED turns on for the duration of executing the code fragment just entered. To pulse the blue LED for ten seconds use the following Lox code in the interpreter:
 
 ```javascript
-pinMode(88, "OUTPUT");
+var led = 88;
+pinMode(led, "OUTPUT");
 for (var i = 1; i <= 10; i = i + 1) {
   delay(500);
-  digitalWrite(88, false);
+  digitalWrite(led, false);
   delay(500);
-  digitalWrite(88, true);
+  digitalWrite(led, true);
 }
 ```
 
@@ -79,6 +80,7 @@ In the style of the book "Crafting Interpreters" by Bob Nystrom, which describes
 #ifndef clox_stdio_h
 #define clox_stdio_h
 
+#include <stdarg.h>
 #include <stdio.h>
 
 #define printf Serial_printf
@@ -95,9 +97,8 @@ int Serial_vfprintf(FILE *dummy, const char *fmt, va_list args);
 
 5. Create a script which defines these two functions, and includes the necessary C headers (as a minimum). Here is a possible outline:
 
-```cpp
+```ino
 extern "C" {
-#include <stdarg.h>
 #include "vm.h"
 #include "clox_stdio.h"
 }
@@ -144,17 +145,10 @@ extern "C" {
 
 int Serial_printf(const char *fmt, ...) {
   if (Serial) {
-    va_list args, args2;
+    va_list args;
     va_start(args, fmt);
-    va_copy(args2, args);
-    int nchars = vsnprintf(nullptr, 0, fmt, args2);
-    va_end(args2);
-    char *buf = (char *)malloc(nchars + 1);
-    vsprintf(buf, fmt, args);
+    int nchars = Serial_vfprintf(stdout, fmt, args);
     va_end(args);
-    Serial.print(buf);
-    free(buf);
-    Serial.flush();
     return nchars;
   }
   else {
@@ -164,17 +158,10 @@ int Serial_printf(const char *fmt, ...) {
 
 int Serial_fprintf(FILE *dummy, const char *fmt, ...) {
   if (Serial) {
-    va_list args, args2;
+    va_list args;
     va_start(args, fmt);
-    va_copy(args2, args);
-    int nchars = vsnprintf(nullptr, 0, fmt, args2);
-    va_end(args2);
-    char *buf = (char *)malloc(nchars + 1);
-    vsprintf(buf, fmt, args);
+    int nchars = Serial_vfprintf(dummy, fmt, args);
     va_end(args);
-    Serial.print(buf);
-    free(buf);
-    Serial.flush();
     return nchars;
   }
   else {
