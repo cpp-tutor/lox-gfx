@@ -1,16 +1,23 @@
-# Port of Lox language to Arduino GIGA R1 Wifi
+# Port of Lox language to Arduino GIGA R1 WiFi (and other boards)
 
 ## Description
 
-An experimental project to determine whether a full-featured scripting language can be used on larger-memory Arduino boards to control hardware. At the moment only the Giga board with Arduino Display Shield is supported, but future support for Portenta H7 (with USB-C display) may be possible.
+An experimental project to determine whether a full-featured scripting language can be used on larger-memory Arduino boards to control hardware. At the moment only the Giga board with Arduino Display Shield is tested, but support for Portenta H7 (with USB-C video display) may be easy to add.
 
 The [Lox language](https://www.craftinginterpreters.com/appendix-i.html) was chosen because of the availability of a ready-made implementation in C ([clox](https://github.com/munificent/craftinginterpreters/tree/master/c)) which is a compact and very quick JIT-compiled interpreter. It is also easy to extend with additional Lox functions, which are mapped to native C/C++ ones defined in the sketch. The construction of the interpreter is described in detail in the book "Crafting Interpreters", however reading the book is not necessarily a prerequisite for using the language or even extending it with new functions.
 
 ## Getting Started
 
-The number of supported graphics functions (and other functions from [this page](https://www.arduino.cc/reference/en/)) is already quite large, leading to a near 400-line sketch required to support the library functionality. Take a look at the example "clox_gfx_demo" and copy it into your sketches folder; the functions prefixed with `gfx_` such as `gfx_millis` are called from within the Lox interpreter without this prefix, for example as `print millis();`.
+The functionality of the sketch has been designed to be switchable, see the file `clox_gfx_config.h` in the "examples/clox_gfx_demo" directory. 
 
-Flashing and booting the Giga results in a REPL in the Serial Monitor, enter line(s) of Lox code at `> ` (start) and `. ` (continuation) prompts, and press Enter on a blank line to execute. Error messages are reported in the REPL, and the blue LED turns on for the duration of executing the code fragment just entered. To pulse the blue LED for ten seconds use the following Lox code in the interpreter:
+* To enable `CLOX_GRAPHICS` a suitable board with support for Arduino_H7_Video is required: Portenta H7 with USBCVideo (untested) or GIGA R1 WiFi with GigaDisplayShield.
+* To enable `CLOX_USB_HOST` a GIGA R1 WiFi is required, this allows reading sketches from a memory stick plugged into the host USB port on the board.
+* To enable `CLOX_WEB_CONSOLE` support for the `WebSockets2_Generic` library is required, for GIGA R1 WiFi board this means a [patched version 1.14+](https://github.com/cpp-tutor/WebSockets2_Generic)
+* To enable `CLOX_USE_SDRAM` a suitable board with support for Portenta_SDRAM is required.
+
+The number of supported graphics functions (and other functions from [this page](https://www.arduino.cc/reference/en/)) is already quite large, leading to a 600+ line sketch required to support the library functionality. Take a look at the example "clox_gfx_demo" and copy it into your sketches folder; the functions prefixed with `gfx_` such as `gfx_millis` are called from within the Lox interpreter without this prefix, for example as `print millis();`.
+
+Flashing and booting the Giga results in a REPL in the Serial Monitor, and also in the Web Console accessed from the address printed when booting, enter line(s) of Lox code at `> ` (start) and `. ` (continuation) prompts, and press Enter on a blank line to execute. Error messages are reported in the REPL, and the blue LED turns on for the duration of executing the code fragment just entered. To pulse the blue LED for ten seconds use the following Lox code in the interpreter:
 
 ```javascript
 var led = 88;
@@ -26,15 +33,63 @@ for (var i = 1; i <= 10; i = i + 1) {
 Graphics on the Giga Display are also supported via the ArduinoGraphics library (note: **not** Arduino_GigaDisplay_GFX). To draw graphics, wrap the commands inside `beginDraw();` and `endDraw();`, for example:
 
 ```javascript
-beginDraw();
-fill(127, 127, 255);
-ellipse(400, 240, 200, 100);
-endDraw();
+fun logo(center_x, center_y) {
+  beginDraw();
+  background(255, 255, 255);
+  clear();
+  fill(0, 129, 132);
+  circle(center_x, center_y, 300);
+  stroke(255, 255, 255);
+  noFill();
+  for (var i = 0; i < 30; i = i + 1) {
+    circle(center_x-55+5, center_y, 110-i);
+    circle(center_x+55-5, center_y, 110-i);
+  }
+  fill(255, 255, 255);
+  rect(center_x-55-16+5, center_y-5, 32, 10);
+  fill(255, 255, 255);
+  rect(center_x+55-16-5, center_y-5, 32, 10);
+  fill(255, 255, 255);
+  rect(center_x+55-5-5, center_y-16, 10, 32);
+  endDraw();
+}
+
+fun animate(seconds) {
+  var x_speed = 4;
+  var y_speed = 4;
+  var time_limit = millis() + seconds * 1000;
+  var x = width() / 2;
+  var y = height() / 2;
+  while (millis() < time_limit) {
+    logo(x, y);
+    delay(10);
+    x = x + x_speed;
+    y = y + y_speed;
+    if ((x + 150) > width()) {
+      x = width() - 150;
+      x_speed = -x_speed;
+    }
+    if ((y + 150) > height()) {
+      y = height() - 150;
+      y_speed = -y_speed;
+    }
+    if (x < 150) {
+      x = 150;
+      x_speed = -x_speed;
+    }
+    if (y < 150) {
+      y = 150;
+      y_speed = -y_speed;
+    }
+  }
+}
+
+animate(20);
 ```
 
 Note: The Arduino_H7_Video library uses some shared SDRAM for the framebuffer, and `SDRAM.begin();` should **not** be called after initializing the display.
 
-Scripts stored on USB flash devices plugged into the USB port on the Giga can be loaded with `load "script.lox"` at the prompt.
+Scripts stored on USB flash devices plugged into the USB port on the Giga can be loaded with `load "script.lox"` at the prompt (some issues with this, currently).
 
 ## Adding Functions
 
@@ -54,10 +109,10 @@ Doing these steps correctly and in order ensures that the project should remain 
 
 There are a number of ideas for the future direction of this library:
 
-* Stability: likely to be many bugs in non-core library code, and faulty Lox input can crash the board
+* Stability: likely to be many bugs in non-core library code, and faulty Lox input can crash the board (fixed)
 * Complete support for more "Arduino.h" functions
 * Support for Arduino_GigaDisplayTouch
-* Support for running scripts via a web interface (console-in-a-web-page)
+* Support for running scripts via a web interface (console-in-a-web-page) (#define CLOX_WEB_CONSOLE 1)
 * Use of the M4 co-processor as a graphics accelerator
 * Changing the Lox interpreter language (not the JIT backend) to something less like JavaScript (GFX-Basic?)
 * Adding to the ArduinoGraphics library (filled triangles, more fonts etc.)
@@ -70,11 +125,11 @@ In the style of the book "Crafting Interpreters" by Bob Nystrom, which describes
 
 1. Clone (part of) the GitHub repo munificent/craftinginterpreters: `svn export https://github.com/munificent/craftinginterpreters.git/trunk/c`
 
-2. Make a folder in your "libraries" directory and paste all of the files apart from `main.c` into it.
+2. Make a folder in your "libraries" directory and copy all of these checked-out files into it, apart from `main.c`.
 
-3. Change all occurences of `#include <stdio.h>` to `#include "clox_stdio.h"`
+3. Change all occurences of `#include <stdio.h>` to `#include "clox_stdio.h"` in files: `compiler.c`, `debug.c`, `memory.c`, `object.c`, `scanner.c`, `value.c` and `vm.c`
 
-4. Add this code as `clox_stdio.h` to the folder:
+4. Add this code as a new file `clox_stdio.h` to the same folder:
 
 ```c
 #ifndef clox_stdio_h

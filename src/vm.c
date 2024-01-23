@@ -1,5 +1,5 @@
-#include <stdarg.h>
 #include "clox_stdio.h"
+#include "clox_gfx.h"
 #include <string.h>
 #include <time.h>
 
@@ -9,7 +9,6 @@
 #include "object.h"
 #include "memory.h"
 #include "vm.h"
-#include "clox_gfx.h"
 
 VM vm; // [one]
 static Value clockNative(int argCount, Value* args) {

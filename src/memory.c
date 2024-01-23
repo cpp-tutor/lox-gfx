@@ -11,6 +11,8 @@
 
 #define GC_HEAP_GROW_FACTOR 2
 
+#if 0
+// define this in sketch to use SDRAM
 void* reallocate(void* pointer, size_t oldSize, size_t newSize) {
   vm.bytesAllocated += newSize - oldSize;
   if (newSize > oldSize) {
@@ -32,6 +34,7 @@ void* reallocate(void* pointer, size_t oldSize, size_t newSize) {
   if (result == NULL) exit(1);
   return result;
 }
+#endif
 void markObject(Obj* object) {
   if (object == NULL) return;
   if (object->isMarked) return;

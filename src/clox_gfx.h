@@ -1,6 +1,8 @@
 #ifndef clox_gfx_h
 #define clox_gfx_h
 
+#include "value.h"
+
 Value gfx_millis();
 Value gfx_micros();
 Value gfx_delay(unsigned long ms);

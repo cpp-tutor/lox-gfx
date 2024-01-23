@@ -1,6 +1,7 @@
 #ifndef clox_stdio_h
 #define clox_stdio_h
 
+#include <stdarg.h>
 #include <stdio.h>
 
 #define printf Serial_printf
