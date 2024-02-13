@@ -33,6 +33,9 @@ Arduino_H7_Video Display(1024, 768, USBCVideo);
 
 USBHostMSD msd;
 mbed::FATFileSystem usb("usb");
+#if ( defined(ARDUINO_PORTENTA_H7_M7) && defined(ARDUINO_ARCH_MBED) )
+mbed::DigitalOut otg(PB_14, 0);
+#endif
 #endif
 
 #if CLOX_WEB_CONSOLE
@@ -117,7 +120,7 @@ void loop() {
     line = "";
     char ch = '\0';
     while (ch != '\n') {
-      if (Serial.available()) {
+      if (Serial.available() > 0) {
         ch = Serial.read();
         line += ch;
       }
@@ -154,7 +157,10 @@ void loop() {
 
   digitalWrite(LEDB, LOW);
   if (line.startsWith("load")) {
-    String filename = line.substring(line.indexOf('\"'), line.lastIndexOf('\"'));
+    String filename;
+    if (line.indexOf('\"') != line.lastIndexOf('\"')) {
+      filename = line.substring(line.indexOf('\"') + 1, line.lastIndexOf('\"'));
+    }
     if (filename.length()) {
       String program = readFile(filename);
       if (program.length()) {
@@ -172,7 +178,14 @@ void loop() {
 }
 
 String readFile(String filename) {
+  String fileData;
 #if CLOX_USB_HOST
+  Serial_printf("Waiting for USB device...\n");
+  long until = millis() + 10 * 1000;
+  while (!msd.connected() && (until > millis())) {
+    msd.connect();
+    delay(3000);
+  }
   Serial_printf("Mounting USB device...\n");
   int err = usb.mount(&msd);
   if (err) {
@@ -181,23 +194,24 @@ String readFile(String filename) {
   else {
     filename = String("/usb/") + filename;
     FILE *f = fopen(filename.c_str(), "r+");
-    String fileData;
-    char buf[256];
     if (f) {
+      char buf[256];
       while (fgets(buf, 256, f) != NULL) {
         fileData += String(buf);
       }
       fclose(f);
-      return fileData;
     }
     else {
-      Serial_printf("Error reading file: %s\n", filename);
+      Serial_printf("Error reading file: %s\n", filename.c_str());
+    }
+    if (!usb.unmount()) {
+      Serial_printf("USB device dismounted.\n");
     }
   }
 #else
   Serial_printf("Error: USB support not available.\n");
 #endif
-  return "";
+  return fileData;
 }
 
 #if CLOX_WEB_CONSOLE
@@ -206,7 +220,7 @@ int poll_webserver(unsigned long poll_time) {
   while (millis() < until) {
     WiFiClient webclient = webserver.available();
     if (webclient) {
-      boolean currentLineIsBlank = true;
+      bool currentLineIsBlank = true;
       while (webclient.connected()) {
         if (webclient.available()) {
           char c = webclient.read();

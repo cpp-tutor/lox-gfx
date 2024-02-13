@@ -89,7 +89,7 @@ animate(20);
 
 Note: The Arduino_H7_Video library uses some shared SDRAM for the framebuffer, and `SDRAM.begin();` should **not** be called after initializing the display.
 
-Scripts stored on USB flash devices plugged into the USB port on the Giga can be loaded with `load "script.lox"` at the prompt (some issues with this, currently).
+Scripts stored on USB flash devices plugged into the USB port on the Giga (or via an OTG cable on Portenta H7) can be loaded with `load "script.lox"` at the prompt (any file extension can be used).
 
 ## Adding Functions
 
@@ -150,7 +150,7 @@ int Serial_vfprintf(FILE *dummy, const char *fmt, va_list args);
 #endif
 ```
 
-5. Create a script which defines these two functions, and includes the necessary C headers (as a minimum). Here is a possible outline:
+5. Create a script which defines these three functions, and includes the necessary C headers (as a minimum). Here is a possible outline:
 
 ```ino
 extern "C" {
