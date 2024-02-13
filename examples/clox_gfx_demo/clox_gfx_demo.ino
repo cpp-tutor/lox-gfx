@@ -32,7 +32,6 @@ Arduino_H7_Video Display(1024, 768, USBCVideo);
 #include <Arduino_USBHostMbed5.h>
 
 USBHostMSD msd;
-mbed::FATFileSystem usb("usb");
 #if ( defined(ARDUINO_PORTENTA_H7_M7) && defined(ARDUINO_ARCH_MBED) )
 mbed::DigitalOut otg(PB_14, 0);
 #endif
@@ -107,6 +106,14 @@ void setup() {
   SDRAM.begin();
 #endif
   initVM();
+#if CLOX_USB_HOST
+  Serial_printf("Waiting for USB device...\n");
+  long until = millis() + 15 * 1000L;
+  while (!msd.connected() && (until > millis())) {
+    msd.connect();
+    delay(3000);
+  }
+#endif
   digitalWrite(LEDB, HIGH);
 }
 
@@ -180,13 +187,8 @@ void loop() {
 String readFile(String filename) {
   String fileData;
 #if CLOX_USB_HOST
-  Serial_printf("Waiting for USB device...\n");
-  long until = millis() + 10 * 1000;
-  while (!msd.connected() && (until > millis())) {
-    msd.connect();
-    delay(3000);
-  }
   Serial_printf("Mounting USB device...\n");
+  mbed::FATFileSystem usb("usb");
   int err = usb.mount(&msd);
   if (err) {
     Serial_printf("Error mounting USB device: %d\n", err);
@@ -271,7 +273,10 @@ void* reallocate(void* pointer, size_t oldSize, size_t newSize) {
   }
 
   void* result = SDRAM.malloc(newSize);
-  if (result == NULL) exit(1);
+  if (result == NULL) {
+    Serial_printf("Fatal Error: Out of memory.");
+    exit(1);
+  }
   memcpy(result, pointer, (oldSize < newSize) ? oldSize : newSize);
   SDRAM.free(pointer);
   return result;
@@ -292,7 +297,10 @@ void* reallocate(void* pointer, size_t oldSize, size_t newSize) {
   }
 
   void* result = realloc(pointer, newSize);
-  if (result == NULL) exit(1);
+  if (result == NULL) {
+    Serial_printf("Fatal Error: Out of memory.");
+    exit(1);
+  }
   return result;
 }
 #endif
