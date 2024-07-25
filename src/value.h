@@ -16,6 +16,7 @@ typedef struct ObjString ObjString;
 #define TAG_NIL   1 // 01.
 #define TAG_FALSE 2 // 10.
 #define TAG_TRUE  3 // 11.
+#define TAG_ERROR 4 // 100.
 
 typedef uint64_t Value;
 
@@ -34,6 +35,7 @@ typedef uint64_t Value;
 #define FALSE_VAL       ((Value)(uint64_t)(QNAN | TAG_FALSE))
 #define TRUE_VAL        ((Value)(uint64_t)(QNAN | TAG_TRUE))
 #define NIL_VAL         ((Value)(uint64_t)(QNAN | TAG_NIL))
+#define ERR_VAL         ((Value)(uint64_t)(QNAN | TAG_ERROR))
 #define NUMBER_VAL(num) numToValue(num)
 #define OBJ_VAL(obj) \
     (Value)(SIGN_BIT | QNAN | (uint64_t)(uintptr_t)(obj))
@@ -59,9 +61,6 @@ typedef enum {
   VAL_OBJ
 } ValueType;
 
-/* Chunks of Bytecode value-h < Types of Values value
-typedef double Value;
-*/
 typedef struct {
   ValueType type;
   union {

@@ -15,6 +15,9 @@ typedef enum {
   OP_GET_GLOBAL,
   OP_DEFINE_GLOBAL,
   OP_SET_GLOBAL,
+  OP_BUILD_LIST,
+  OP_INDEX_SUBSCR,
+  OP_STORE_SUBSCR,
   OP_GET_UPVALUE,
   OP_SET_UPVALUE,
   OP_GET_PROPERTY,
@@ -54,9 +57,6 @@ typedef struct {
 
 void initChunk(Chunk* chunk);
 void freeChunk(Chunk* chunk);
-/* Chunks of Bytecode write-chunk-h < Chunks of Bytecode write-chunk-with-line-h
-void writeChunk(Chunk* chunk, uint8_t byte);
-*/
 void writeChunk(Chunk* chunk, uint8_t byte, int line);
 int addConstant(Chunk* chunk, Value value);
 

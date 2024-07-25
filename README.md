@@ -105,14 +105,31 @@ The process of adding additional native functions to the Lox interpreter has fou
 
 Doing these steps correctly and in order ensures that the project should remain compilable at all times. Look out for both compilation and linker errors.
 
+## Additions to the Lox Language
+
+A number of native functions not specified in the book "Crafting Interpreters" have been added to the base language, as well as hetrogeneous list syntax using `[` and `]`:
+
+```javascript
+var list = [ 1, "abc", 2.2 ];
+print length(list);           // "3"
+list[2] = 3.3;                // list is now [ 1, "abc", 3.3 ];
+delete(list, 1);              // list is now [ 1, 3.3 ];
+print length(list);           // "2"
+append(list, "xyz");          // list is now [ 1, 3.3, "xyz" ];
+print list[2];                // "xyz"
+var s1 = tostring(2.2);       // s1 is "2.2"
+var s2 = "abcde";
+var s3 = substring(s2, 2, 3); // s3 is "cd"
+```
+
 ## Future Developments
 
 There are a number of ideas for the future direction of this library:
 
-* Stability: likely to be many bugs in non-core library code, and faulty Lox input can crash the board (fixed)
+* Stability: likely to be many bugs in non-core library. Faulty Lox input can crash the board (fixed). Errors generated in native functions cause the interpreter to crash (fixed). Loading from USB is not stable.
 * Complete support for more "Arduino.h" functions
 * Support for Arduino_GigaDisplayTouch
-* Support for running scripts via a web interface (console-in-a-web-page) (#define CLOX_WEB_CONSOLE 1)
+* Support for running scripts via a web interface (console-in-a-web-page) (use #define CLOX_WEB_CONSOLE 1 in "clox_gfx_config.h")
 * Use of the M4 co-processor as a graphics accelerator
 * Changing the Lox interpreter language (not the JIT backend) to something less like JavaScript (GFX-Basic?)
 * Adding to the ArduinoGraphics library (filled triangles, more fonts etc.)

@@ -71,9 +71,6 @@ ObjNative* newNative(NativeFn function) {
   return native;
 }
 
-/* Strings allocate-string < Hash Tables allocate-string
-static ObjString* allocateString(char* chars, int length) {
-*/
 static ObjString* allocateString(char* chars, int length,
                                  uint32_t hash) {
   ObjString* string = ALLOCATE_OBJ(ObjString, OBJ_STRING);
@@ -96,9 +93,6 @@ static uint32_t hashString(const char* key, int length) {
   return hash;
 }
 ObjString* takeString(char* chars, int length) {
-/* Strings take-string < Hash Tables take-string-hash
-  return allocateString(chars, length);
-*/
   uint32_t hash = hashString(chars, length);
   ObjString* interned = tableFindString(&vm.strings, chars, length,
                                         hash);
@@ -118,9 +112,6 @@ ObjString* copyString(const char* chars, int length) {
   char* heapChars = ALLOCATE(char, length + 1);
   memcpy(heapChars, chars, length);
   heapChars[length] = '\0';
-/* Strings object-c < Hash Tables copy-string-allocate
-  return allocateString(heapChars, length);
-*/
   return allocateString(heapChars, length, hash);
 }
 ObjUpvalue* newUpvalue(Value* slot) {
@@ -136,6 +127,49 @@ static void printFunction(ObjFunction* function) {
     return;
   }
   printf("<fn %s>", function->name->chars);
+}
+
+ObjList* newList() {
+  ObjList* list = ALLOCATE_OBJ(ObjList, OBJ_LIST);
+  list->items = NULL;
+  list->count = 0;
+  list->capacity = 0;
+  return list;
+}
+
+void appendToList(ObjList* list, Value value) {
+  // Grow the array if necessary
+  if (list->capacity < list->count + 1) {
+      int oldCapacity = list->capacity;
+      list->capacity = GROW_CAPACITY(oldCapacity);
+      list->items = GROW_ARRAY(Value, list->items, oldCapacity, list->capacity);
+  }
+  list->items[list->count] = value;
+  list->count++;
+  return;
+}
+
+void storeToList(ObjList* list, int index, Value value) {
+  list->items[index] = value;
+}
+
+Value indexFromList(ObjList* list, int index) {
+  return list->items[index];
+}
+
+void deleteFromList(ObjList* list, int index) {
+  for (int i = index; i < list->count - 1; i++) {
+      list->items[i] = list->items[i+1];
+  }
+  list->items[list->count - 1] = NIL_VAL;
+  list->count--;
+}
+
+bool isValidListIndex(ObjList* list, int index) {
+  if (index < 0 || index > list->count - 1) {
+      return false;
+  }
+  return true;
 }
 void printObject(Value value) {
   switch (OBJ_TYPE(value)) {
@@ -160,6 +194,9 @@ void printObject(Value value) {
       break;
     case OBJ_STRING:
       printf("%s", AS_CSTRING(value));
+      break;
+    case OBJ_LIST:
+      printf("list");
       break;
     case OBJ_UPVALUE:
       printf("upvalue");

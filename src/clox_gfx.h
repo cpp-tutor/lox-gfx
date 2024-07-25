@@ -64,13 +64,13 @@ Value gfx_printFloat(double num, int digits);
     if (arity != argCount) { \
       runtimeError("Expected %d arguments but got %d in call to %s().", \
         arity, argCount, #type); \
-      return NIL_VAL; \
+      return ERR_VAL; \
     } \
     for (int arg = 0; arg != argCount; ++arg) { \
       if (!IS_NUMBER(args[arg])) { \
         runtimeError("Expected a number for argument %d call to %s().", \
           arg + 1, #type); \
-        return NIL_VAL; \
+        return ERR_VAL; \
       } \
     } \
     return gfx_##type(GFX_ARGS_##arity); \
@@ -83,17 +83,17 @@ Value gfx_printFloat(double num, int digits);
     if (2 != argCount) { \
       runtimeError("Expected %d arguments but got %d in call to %s().", \
         2, argCount, #type); \
-      return NIL_VAL; \
+      return ERR_VAL; \
     } \
     if (!IS_NUMBER(args[0])) { \
       runtimeError("Expected a number for argument %d call to %s().", \
         1, #type); \
-      return NIL_VAL; \
+      return ERR_VAL; \
     } \
     if (!IS_STRING(args[1])) { \
       runtimeError("Expected a string for argument %d call to %s().", \
         2, #type); \
-      return NIL_VAL; \
+      return ERR_VAL; \
     } \
     return gfx_##type(GFX_ARGS_NUM_STR); \
   }
@@ -105,17 +105,17 @@ Value gfx_printFloat(double num, int digits);
     if (2 != argCount) { \
       runtimeError("Expected %d arguments but got %d in call to %s().", \
         2, argCount, #type); \
-      return NIL_VAL; \
+      return ERR_VAL; \
     } \
     if (!IS_NUMBER(args[0])) { \
       runtimeError("Expected a number for argument %d call to %s().", \
         1, #type); \
-      return NIL_VAL; \
+      return ERR_VAL; \
     } \
     if (!IS_BOOL(args[1])) { \
       runtimeError("Expected a Boolean for argument %d call to %s().", \
         2, #type); \
-      return NIL_VAL; \
+      return ERR_VAL; \
     } \
     return gfx_##type(GFX_ARGS_NUM_BOOL); \
   }
@@ -127,22 +127,22 @@ Value gfx_printFloat(double num, int digits);
     if (3 != argCount) { \
       runtimeError("Expected %d arguments but got %d in call to %s().", \
         3, argCount, #type); \
-      return NIL_VAL; \
+      return ERR_VAL; \
     } \
     if (!IS_STRING(args[0])) { \
       runtimeError("Expected a string for argument %d call to %s().", \
         1, #type); \
-      return NIL_VAL; \
+      return ERR_VAL; \
     } \
     if (!IS_NUMBER(args[1])) { \
       runtimeError("Expected a number for argument %d call to %s().", \
         2, #type); \
-      return NIL_VAL; \
+      return ERR_VAL; \
     } \
     if (!IS_NUMBER(args[2])) { \
       runtimeError("Expected a number for argument %d call to %s().", \
         3, #type); \
-        return NIL_VAL; \
+        return ERR_VAL; \
     } \
     return gfx_##type(GFX_ARGS_STR_NUM_NUM); \
   }
@@ -154,12 +154,12 @@ Value gfx_printFloat(double num, int digits);
     if (1 != argCount) { \
       runtimeError("Expected %d arguments but got %d in call to %s().", \
         1, argCount, #type); \
-      return NIL_VAL; \
+      return ERR_VAL; \
     } \
     if (!IS_STRING(args[0])) { \
       runtimeError("Expected a string for argument %d call to %s().", \
         1, #type); \
-      return NIL_VAL; \
+      return ERR_VAL; \
     } \
     return gfx_##type(GFX_ARGS_STR); \
   }

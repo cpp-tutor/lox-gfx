@@ -11,9 +11,6 @@
 #include "vm.h"
 
 VM vm; // [one]
-static Value clockNative(int argCount, Value* args) {
-  return NUMBER_VAL((double)clock() / CLOCKS_PER_SEC);
-}
 static void resetStack() {
   vm.stackTop = vm.stack;
   vm.frameCount = 0;
@@ -26,23 +23,8 @@ void runtimeError(const char* format, ...) {
   va_end(args);
   fputs("\n", stderr);
 
-/* Types of Values runtime-error < Calls and Functions runtime-error-temp
-  size_t instruction = vm.ip - vm.chunk->code - 1;
-  int line = vm.chunk->lines[instruction];
-*/
-/* Calls and Functions runtime-error-temp < Calls and Functions runtime-error-stack
-  CallFrame* frame = &vm.frames[vm.frameCount - 1];
-  size_t instruction = frame->ip - frame->function->chunk.code - 1;
-  int line = frame->function->chunk.lines[instruction];
-*/
-/* Types of Values runtime-error < Calls and Functions runtime-error-stack
-  fprintf(stderr, "[line %d] in script\n", line);
-*/
   for (int i = vm.frameCount - 1; i >= 0; i--) {
     CallFrame* frame = &vm.frames[i];
-/* Calls and Functions runtime-error-stack < Closures runtime-error-function
-    ObjFunction* function = frame->function;
-*/
     ObjFunction* function = frame->closure->function;
     size_t instruction = frame->ip - function->chunk.code - 1;
     fprintf(stderr, "[line %d] in ", // [minus]
@@ -102,6 +84,99 @@ GFX_DEFINE_STR(printStrLn)
 GFX_DEFINE(printInt, 2)
 GFX_DEFINE(printFloat, 2)
 
+static Value appendNative(int argCount, Value* args) {
+  // Append a value to the end of a list increasing the list's length by 1
+  if (argCount != 2 || !IS_LIST(args[0])) {
+    runtimeError("Bad call to append().");
+    return ERR_VAL;
+  }
+  ObjList* list = AS_LIST(args[0]);
+  Value item = args[1];
+  appendToList(list, item);
+  return NIL_VAL;
+}
+
+static Value deleteNative(int argCount, Value* args) {
+  // Delete an item from a list at the given index.
+  if (argCount != 2 || !IS_LIST(args[0]) || !IS_NUMBER(args[1])) {
+    runtimeError("Bad call to delete().");
+    return ERR_VAL;
+  }
+
+  ObjList* list = AS_LIST(args[0]);
+  int index = AS_NUMBER(args[1]);
+
+  if (!isValidListIndex(list, index)) {
+    runtimeError("Index %d is not valid.", index);
+    return ERR_VAL;
+  }
+
+  deleteFromList(list, index);
+  return NIL_VAL;
+}
+static Value lengthNative(int argCount, Value* args) {
+  if (argCount != 1 || (!IS_STRING(args[0]) && !IS_LIST(args[0]))) {
+    runtimeError("Bad call to length().");
+    return ERR_VAL;
+  }
+  int length = 0;
+  if (IS_STRING(args[0])) {
+    ObjString* str = AS_STRING(args[0]);
+    length = str->length;
+  }
+  else if (IS_LIST(args[0])) {
+    ObjList* list = AS_LIST(args[0]);
+    length = list->count;
+  }
+  return NUMBER_VAL(length);
+}
+static Value tostringNative(int argCount, Value* args) {
+  if (argCount != 1) {
+    runtimeError("Bad call to tostring().");
+    return ERR_VAL;
+  }
+  char buffer[16];
+#ifdef NAN_BOXING
+  if (IS_BOOL(args[0])) {
+    snprintf(buffer, sizeof(buffer), AS_BOOL(args[0]) ? "true" : "false");
+  } else if (IS_NIL(args[0])) {
+    snprintf(buffer, sizeof(buffer), "nil");
+  } else if (IS_NUMBER(args[0])) {
+    snprintf(buffer, sizeof(buffer), "%g", AS_NUMBER(args[0]));
+  } else if (IS_OBJ(args[0]) && IS_STRING(args[0])) {
+    return args[0];
+  } else {
+    runtimeError("Cannot convert this type to a string.");
+    return ERR_VAL;
+  }
+#else
+  switch (args[0].type) {
+    case VAL_BOOL:
+      snprintf(buffer, sizeof(buffer), AS_BOOL(args[0]) ? "true" : "false");
+      break;
+    case VAL_NIL: snprintf(buffer, sizeof(buffer), "nil"); break;
+    case VAL_NUMBER: snprintf(buffer, sizeof(buffer), "%g", AS_NUMBER(args[0])); break;
+    case VAL_OBJ: if (IS_STRING(args[0])) { return args[0]; } else {
+      runtimeError("Cannot convert this type to a string.");
+    return ERR_VAL;
+     }
+  }
+#endif
+  return OBJ_VAL(copyString(buffer, (int)strlen(buffer)));
+}
+static Value substringNative(int argCount, Value* args) {
+  if (argCount != 3 || !IS_STRING(args[0]) || !IS_NUMBER(args[1]) || !IS_NUMBER(args[2])) {
+    runtimeError("Bad call to substring().");
+    return ERR_VAL;
+  }
+  ObjString* str = AS_STRING(args[0]);
+  int start = AS_NUMBER(args[1]), end = AS_NUMBER(args[2]);
+  if (start < 0 || start > end || end >= str->length) {
+    runtimeError("Bad index(es) for substring().");
+    return ERR_VAL;
+  }
+  return OBJ_VAL(copyString(str->chars + start, end - start + 1));
+}
 static void defineNative(const char* name, NativeFn function) {
   push(OBJ_VAL(copyString(name, (int)strlen(name))));
   push(OBJ_VAL(newNative(function)));
@@ -126,7 +201,6 @@ void initVM() {
   vm.initString = NULL;
   vm.initString = copyString("init", 4);
 
-  defineNative("clock", clockNative);
   GFX_DECLARE(millis);
   GFX_DECLARE(micros);
   GFX_DECLARE(delay);
@@ -172,6 +246,11 @@ void initVM() {
   GFX_DECLARE(printStrLn);
   GFX_DECLARE(printInt);
   GFX_DECLARE(printFloat);
+  defineNative("append", appendNative);
+  defineNative("delete", deleteNative);
+  defineNative("length", lengthNative);
+  defineNative("tostring", tostringNative);
+  defineNative("substring", substringNative);
 }
 
 void freeVM() {
@@ -191,15 +270,7 @@ Value pop() {
 static Value peek(int distance) {
   return vm.stackTop[-1 - distance];
 }
-/* Calls and Functions call < Closures call-signature
-static bool call(ObjFunction* function, int argCount) {
-*/
 static bool call(ObjClosure* closure, int argCount) {
-/* Calls and Functions check-arity < Closures check-arity
-  if (argCount != function->arity) {
-    runtimeError("Expected %d arguments but got %d.",
-        function->arity, argCount);
-*/
   if (argCount != closure->function->arity) {
     runtimeError("Expected %d arguments but got %d.",
         closure->function->arity, argCount);
@@ -212,10 +283,6 @@ static bool call(ObjClosure* closure, int argCount) {
   }
 
   CallFrame* frame = &vm.frames[vm.frameCount++];
-/* Calls and Functions call < Closures call-init-closure
-  frame->function = function;
-  frame->ip = function->chunk.code;
-*/
   frame->closure = closure;
   frame->ip = closure->function->chunk.code;
   frame->slots = vm.stackTop - argCount - 1;
@@ -245,13 +312,12 @@ static bool callValue(Value callee, int argCount) {
       }
       case OBJ_CLOSURE:
         return call(AS_CLOSURE(callee), argCount);
-/* Calls and Functions call-value < Closures call-value-closure
-      case OBJ_FUNCTION: // [switch]
-        return call(AS_FUNCTION(callee), argCount);
-*/
       case OBJ_NATIVE: {
         NativeFn native = AS_NATIVE(callee);
         Value result = native(argCount, vm.stackTop - argCount);
+        if (result == ERR_VAL) {
+          return false;
+        }
         vm.stackTop -= argCount + 1;
         push(result);
         return true;
@@ -345,10 +411,6 @@ static bool isFalsey(Value value) {
   return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
 static void concatenate() {
-/* Strings concatenate < Garbage Collection concatenate-peek
-  ObjString* b = AS_STRING(pop());
-  ObjString* a = AS_STRING(pop());
-*/
   ObjString* b = AS_STRING(peek(0));
   ObjString* a = AS_STRING(peek(1));
 
@@ -366,38 +428,16 @@ static void concatenate() {
 static InterpretResult run() {
   CallFrame* frame = &vm.frames[vm.frameCount - 1];
 
-/* A Virtual Machine run < Calls and Functions run
-#define READ_BYTE() (*vm.ip++)
-*/
 #define READ_BYTE() (*frame->ip++)
-/* A Virtual Machine read-constant < Calls and Functions run
-#define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
-*/
 
-/* Jumping Back and Forth read-short < Calls and Functions run
-#define READ_SHORT() \
-    (vm.ip += 2, (uint16_t)((vm.ip[-2] << 8) | vm.ip[-1]))
-*/
 #define READ_SHORT() \
     (frame->ip += 2, \
     (uint16_t)((frame->ip[-2] << 8) | frame->ip[-1]))
 
-/* Calls and Functions run < Closures read-constant
-#define READ_CONSTANT() \
-    (frame->function->chunk.constants.values[READ_BYTE()])
-*/
 #define READ_CONSTANT() \
     (frame->closure->function->chunk.constants.values[READ_BYTE()])
 
 #define READ_STRING() AS_STRING(READ_CONSTANT())
-/* A Virtual Machine binary-op < Types of Values binary-op
-#define BINARY_OP(op) \
-    do { \
-      double b = pop(); \
-      double a = pop(); \
-      push(a op b); \
-    } while (false)
-*/
 #define BINARY_OP(valueType, op) \
     do { \
       if (!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
@@ -418,14 +458,6 @@ static InterpretResult run() {
       printf(" ]");
     }
     printf("\n");
-/* A Virtual Machine trace-execution < Calls and Functions trace-execution
-    disassembleInstruction(vm.chunk,
-                           (int)(vm.ip - vm.chunk->code));
-*/
-/* Calls and Functions trace-execution < Closures disassemble-instruction
-    disassembleInstruction(&frame->function->chunk,
-        (int)(frame->ip - frame->function->chunk.code));
-*/
     disassembleInstruction(&frame->closure->function->chunk,
         (int)(frame->ip - frame->closure->function->chunk.code));
 #endif
@@ -434,10 +466,6 @@ static InterpretResult run() {
     switch (instruction = READ_BYTE()) {
       case OP_CONSTANT: {
         Value constant = READ_CONSTANT();
-/* A Virtual Machine op-constant < A Virtual Machine push-constant
-        printValue(constant);
-        printf("\n");
-*/
         push(constant);
         break;
       }
@@ -447,17 +475,11 @@ static InterpretResult run() {
       case OP_POP: pop(); break;
       case OP_GET_LOCAL: {
         uint8_t slot = READ_BYTE();
-/* Local Variables interpret-get-local < Calls and Functions push-local
-        push(vm.stack[slot]); // [slot]
-*/
         push(frame->slots[slot]);
         break;
       }
       case OP_SET_LOCAL: {
         uint8_t slot = READ_BYTE();
-/* Local Variables interpret-set-local < Calls and Functions set-local
-        vm.stack[slot] = peek(0);
-*/
         frame->slots[slot] = peek(0);
         break;
       }
@@ -486,6 +508,80 @@ static InterpretResult run() {
         }
         break;
       }
+      case OP_BUILD_LIST: {
+        // Stack before: [item1, item2, ..., itemN] and after: [list]
+        ObjList* list = newList();
+        uint8_t itemCount = READ_BYTE();
+
+        // Add items to list
+        push(OBJ_VAL(list)); // So list isn't sweeped by GC in appendToList
+        for (int i = itemCount; i > 0; i--) {
+          appendToList(list, peek(i));
+        }
+        pop();
+
+        // Pop items from stack
+        while (itemCount-- > 0) {
+          pop();
+        }
+
+        push(OBJ_VAL(list));
+        break;
+      }
+      case OP_INDEX_SUBSCR: {
+        // Stack before: [list, index] and after: [index(list, index)]
+        Value index = pop();
+        Value list = pop();
+        Value result;
+
+        if (!IS_LIST(list)) {
+          runtimeError("Invalid type to index into.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        ObjList* list_obj = AS_LIST(list);
+
+        if (!IS_NUMBER(index)) {
+          runtimeError("List index is not a number.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        int index_obj = AS_NUMBER(index);
+
+        if (!isValidListIndex(list_obj, index_obj)) {
+          runtimeError("List index out of range.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+
+        result = indexFromList(list_obj, index_obj);
+        push(result);
+        break;
+      }
+      case OP_STORE_SUBSCR: {
+        // Stack before: [list, index, item] and after: [item]
+        Value item = pop();
+        Value index = pop();
+        Value list = pop();
+
+        if (!IS_LIST(list)) {
+          runtimeError("Cannot store value in a non-list.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        ObjList* list_obj = AS_LIST(list);
+
+        if (!IS_NUMBER(index)) {
+          runtimeError("List index is not a number.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+        int index_obj = AS_NUMBER(index);
+
+        if (!isValidListIndex(list_obj, index_obj)) {
+          runtimeError("Invalid list index.");
+          return INTERPRET_RUNTIME_ERROR;
+        }
+
+        storeToList(list_obj, index_obj, item);
+        push(item);
+        break;
+      }
       case OP_GET_UPVALUE: {
         uint8_t slot = READ_BYTE();
         push(*frame->closure->upvalues[slot]->location);
@@ -512,10 +608,6 @@ static InterpretResult run() {
           break;
         }
 
-/* Classes and Instances get-undefined < Methods and Initializers get-method
-        runtimeError("Undefined property '%s'.", name->chars);
-        return INTERPRET_RUNTIME_ERROR;
-*/
         if (!bindMethod(instance->klass, name)) {
           return INTERPRET_RUNTIME_ERROR;
         }
@@ -551,18 +643,6 @@ static InterpretResult run() {
       }
       case OP_GREATER:  BINARY_OP(BOOL_VAL, >); break;
       case OP_LESS:     BINARY_OP(BOOL_VAL, <); break;
-/* A Virtual Machine op-binary < Types of Values op-arithmetic
-      case OP_ADD:      BINARY_OP(+); break;
-      case OP_SUBTRACT: BINARY_OP(-); break;
-      case OP_MULTIPLY: BINARY_OP(*); break;
-      case OP_DIVIDE:   BINARY_OP(/); break;
-*/
-/* A Virtual Machine op-negate < Types of Values op-negate
-      case OP_NEGATE:   push(-pop()); break;
-*/
-/* Types of Values op-arithmetic < Strings add-strings
-      case OP_ADD:      BINARY_OP(NUMBER_VAL, +); break;
-*/
       case OP_ADD: {
         if (IS_STRING(peek(0)) && IS_STRING(peek(1))) {
           concatenate();
@@ -570,9 +650,16 @@ static InterpretResult run() {
           double b = AS_NUMBER(pop());
           double a = AS_NUMBER(pop());
           push(NUMBER_VAL(a + b));
+        } else if (IS_LIST(peek(0)) && IS_LIST(peek(1))) {
+          ObjList* b = AS_LIST(pop());
+          ObjList* a = AS_LIST(pop());
+          for (int i = 0; i != b->count; ++i) {
+            appendToList(a, b->items[i]);
+          }
+          push(OBJ_VAL(a));
         } else {
           runtimeError(
-              "Operands must be two numbers or two strings.");
+              "Operands must be two numbers two lists or two strings.");
           return INTERPRET_RUNTIME_ERROR;
         }
         break;
@@ -597,25 +684,16 @@ static InterpretResult run() {
       }
       case OP_JUMP: {
         uint16_t offset = READ_SHORT();
-/* Jumping Back and Forth op-jump < Calls and Functions jump
-        vm.ip += offset;
-*/
         frame->ip += offset;
         break;
       }
       case OP_JUMP_IF_FALSE: {
         uint16_t offset = READ_SHORT();
-/* Jumping Back and Forth op-jump-if-false < Calls and Functions jump-if-false
-        if (isFalsey(peek(0))) vm.ip += offset;
-*/
         if (isFalsey(peek(0))) frame->ip += offset;
         break;
       }
       case OP_LOOP: {
         uint16_t offset = READ_SHORT();
-/* Jumping Back and Forth op-loop < Calls and Functions loop
-        vm.ip -= offset;
-*/
         frame->ip -= offset;
         break;
       }
@@ -667,16 +745,6 @@ static InterpretResult run() {
         pop();
         break;
       case OP_RETURN: {
-/* A Virtual Machine print-return < Global Variables op-return
-        printValue(pop());
-        printf("\n");
-*/
-/* Global Variables op-return < Calls and Functions interpret-return
-        // Exit interpreter.
-*/
-/* A Virtual Machine run < Calls and Functions interpret-return
-        return INTERPRET_OK;
-*/
         Value result = pop();
         closeUpvalues(frame->slots);
         vm.frameCount--;
@@ -718,59 +786,15 @@ static InterpretResult run() {
 #undef READ_STRING
 #undef BINARY_OP
 }
-void hack(bool b) {
-  // Hack to avoid unused function error. run() is not used in the
-  // scanning chapter.
-  run();
-  if (b) hack(false);
-}
-/* A Virtual Machine interpret < Scanning on Demand vm-interpret-c
-InterpretResult interpret(Chunk* chunk) {
-  vm.chunk = chunk;
-  vm.ip = vm.chunk->code;
-  return run();
-*/
 InterpretResult interpret(const char* source) {
-/* Scanning on Demand vm-interpret-c < Compiling Expressions interpret-chunk
-  compile(source);
-  return INTERPRET_OK;
-*/
-/* Compiling Expressions interpret-chunk < Calls and Functions interpret-stub
-  Chunk chunk;
-  initChunk(&chunk);
-
-  if (!compile(source, &chunk)) {
-    freeChunk(&chunk);
-    return INTERPRET_COMPILE_ERROR;
-  }
-
-  vm.chunk = &chunk;
-  vm.ip = vm.chunk->code;
-*/
-
   ObjFunction* function = compile(source);
   if (function == NULL) return INTERPRET_COMPILE_ERROR;
 
   push(OBJ_VAL(function));
-/* Calls and Functions interpret-stub < Calls and Functions interpret
-  CallFrame* frame = &vm.frames[vm.frameCount++];
-  frame->function = function;
-  frame->ip = function->chunk.code;
-  frame->slots = vm.stack;
-*/
-/* Calls and Functions interpret < Closures interpret
-  call(function, 0);
-*/
   ObjClosure* closure = newClosure(function);
   pop();
   push(OBJ_VAL(closure));
   call(closure, 0);
 
-/* Compiling Expressions interpret-chunk < Calls and Functions end-interpret
-  InterpretResult result = run();
-
-  freeChunk(&chunk);
-  return result;
-*/
   return run();
 }
